@@ -69,7 +69,7 @@ import groovy.transform.Field
    "red": 3
 ]
 
-// LED/button number to parameter value mappings (for LED color parmeters):
+// LED/button number to parameter value mappings (for LED color parameters):
 @Field static Map<Integer,Integer> ledIndicatorParams = [1: 2, 2: 3, 3: 4, 4: 5, 5: 1]
 @Field static Map<Integer,Integer> ledColorParams = [1: 7, 2: 8, 3: 9, 4: 10, 5: 6]
 @Field static Map<Integer,Integer> ledBrightnessParams = [1: 12, 2: 13, 3: 14, 4: 15, 5: 11]
@@ -78,21 +78,30 @@ import groovy.transform.Field
 @Field static Map<Integer,Short> indicatorLEDNumberMap = [0:0x50, 5:0x43, 1:0x44, 2:0x45, 3:0x46, 4:0x47]
 
 @Field static final Map zwaveParameters = [
-   16: [input: [name: "param.16", type: "number", title: "[16] Automtically turn relay off after ... minutes (0=disable auto-off; default)", range: 0..65535],
+   16: [input: [name: "param.16", type: "number", title: "Auto-Off timer for relay (minutes) [#16]", range: 0..65535],
       size: 4],
-   17: [input: [name: "param.17", type: "number", title: "[17] Automtically turn relay on after ... minutes (0=disable auto-on; default)", range: 0..65535],
+   17: [input: [name: "param.17", type: "number", title: "Auto-On timer for relay (minutes) [#17]", range: 0..65535],
       size: 4],
-   18: [input: [name: "param.18", type: "enum", title: "[18] State on power restore (relay and buttons)",
-       options: [[2: "Off"], [1: "On"], [0: "Previous state (default)"]]],
+   18: [input: [name: "param.18", type: "enum", title: "State after power restore [#18]",
+      options: [[2: "Off"], [1: "On"], [0: "Previous State (DEFAULT)"]]],
       size: 1],
-   19: [input: [name: "param.19", type: "enum", title: "[19] Local (phyiscal) and Z-Wave control/smart bulb mode",
-       options: [[0: "Disable local control, enable Z-Wave"], [1: "Enable local and Z-Wave control (default)"], [2: "Disable local and Z-Wave control"]]],
+   19: [input: [name: "param.19", type: "enum", title: "Physical and Z-Wave (smart bulb mode) [#19]",
+      options: [[0: "Disable physical control, enable Z-Wave"], [1: "Enable physical and Z-Wave control (DEFAULT)"], [2: "Disable physical and Z-Wave control"]]],
       size: 1],
-   20: [input: [name: "param.20", type: "enum", title: "[20] Behavior of relay reports if local and/or Z-Wave control disabled (scene/button events are always sent)",
-        options: [[0:"Send on/off reports and change LED"],[1:"Do not send on/off reports or change LED (default)"]]],
+   20: [input: [name: "param.20", type: "enum", title: "Behavior if physical control disabled [#20]", description:"(Scene / button events are always sent)",
+      options: [[0:"Send on/off reports and change LED"],[1:"Do not send on/off reports or change LED (DEFAULT)"]]],
       size: 1],
-   21: [input: [name: "param.21", type: "enum", title: "[21] 3-way switch type",
-        options: [[0:"Mechanical (connected 3-way turns on/off) (default)"],[1:"Momentary (connected 3-way toggles on/off)"]]],
+   21: [input: [name: "param.21", type: "enum", title: "3-Way switch type [#21]",
+      options: [[0:"Regular Mechanical 3-way (DEFAULT)"],[1:"Momentary Switch"]]],
+      size: 1],
+   22: [input: [name: "param.22", type: "enum", title: "Programming from the Relay Button [#22]",
+      options: [[0:"Enabled (Default)", 1:"Disabled"]]],
+      size: 1],
+   23: [input: [name: "param.23", type: "enum", title: "LED flash when settings changed [#23]",
+      options: [[0:"Flash Enabled (DEFAULT)"],[1:"Flash Disabled"]]],
+      size: 1],
+   24: [input: [name: "param.24", type: "enum", title: "Scene Control Events on Relay [#24]",
+      options: [[0:"Enabled (Default)", 1:"Disabled"]]],
       size: 1]
 ]
 
@@ -135,15 +144,15 @@ metadata {
       //command "clearChildDevsAndState"
 
       fingerprint mfr:"027A", prod:"7000", deviceId:"A008", inClusters:"0x5E,0x25,0x70,0x20,0x5B,0x85,0x8E,0x59,0x55,0x86,0x72,0x5A,0x73,0x87,0x9F,0x6C,0x7A" 
-      fingerprint mfr:"027A", prod:"7000", model: "A008"
+      fingerprint mfr:"027A", prod:"7000", deviceId:"A008"
    }
 
    preferences {
       zwaveParameters.each {
          input it.value.input
       }
-      input name: "relayLEDBehavior", type: "enum", title: "Relay LED behavior", options: [[0:"LED on when relay off, off when on (default)"],[1:"LED on when relay on, off when off"],
-         [2:"LED on or off as modified by \"Set LED\" command (recommended in some use cases)"]]
+      input name: "relayLEDBehavior", type: "enum", title: "Relay LED behavior", options: [[0:"LED on when relay off (DEFAULT)"],[1:"LED on when relay on"],
+         [2:"LED on or off as modified by \"Set LED\" command"]]
       input name: "enableDebug", type: "bool", title: "Enable debug logging", defaultValue: true
       input name: "enableDesc", type: "bool", title: "Enable descriptionText logging", defaultValue: true
    }
@@ -173,8 +182,8 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd){
 }
 
 void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
-   if (logEnable) log.debug "VersionReport: ${cmd}"
-   device.updateDataValue("firmwareVersion", """${cmd.firmware0Version}.${String.format("%02d", cmd.firmware0SubVersion)}""")
+   if (enableDebug) log.debug "VersionReport: ${cmd}"
+   device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${String.format("%02d", cmd.firmware0SubVersion)}")
    device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
    device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
 }
@@ -268,7 +277,7 @@ List<String> refresh() {
    if (enableDebug) log.debug "refresh"
    return delayBetween([
       zwaveSecureEncap(zwave.basicV1.basicGet()),
-      zwaveSecureEncap(zwave.configurationV1.configurationGet()),
+      //zwaveSecureEncap(zwave.configurationV1.configurationGet()),
       zwaveSecureEncap(zwave.versionV2.versionGet())
    ], 100)
 }
@@ -326,8 +335,7 @@ List<String> configure() {
    }
 
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
-   cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
-   cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet())
+   //cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet())
    return delayBetween(cmds, 150)
 }
 
@@ -360,12 +368,10 @@ List<String> updated() {
    return delayBetween(cmds, 200)
 }
 
-command "setLED", [[name:"ledNumber", type: "NUMBER", description: "LED/button number (1-5, 5=large/relay button)", constraints: 1..5],
-                         [name:"colorName", type: "ENUM", description: "Color name (white, blue, green, red)", constraints: ["white", "blue", "green", "red"]],
-                         [name:"brightness", type: "ENUM", description: "Brightness level (100, 60, or 30%; will round to nearest; 0 for off)", constraints: [100,60,30,0]],
-                        ] 
-
-
+// command "setLED", [[name:"ledNumber", type: "NUMBER", description: "LED/button number (1-5, 5=large/relay button)", constraints: 1..5],
+//                          [name:"colorName", type: "ENUM", description: "Color name (white, blue, green, red)", constraints: ["white", "blue", "green", "red"]],
+//                          [name:"brightness", type: "ENUM", description: "Brightness level (100, 60, or 30%; will round to nearest; 0 for off)", constraints: [100,60,30,0]],
+//                         ] 
 List<String> setLED(Number ledNumber, String colorName, brightness) {
    if (enableDebug) log.debug "setLED(Number $ledNumber, String $colorName, Object $brightness)"
    Integer intColor = colorNameMap[colorName?.toLowerCase()] ?: 0
