@@ -5,3 +5,4 @@ apps/DimmerButtonController/deprecated/.DS_Store
 apps/LightsOnMotionPlus/.DS_Store
 apps/.DS_Store
 .DS_Store
+.hubitat/metadata.json
