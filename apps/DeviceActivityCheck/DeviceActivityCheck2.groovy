@@ -433,13 +433,13 @@ List<DeviceWrapper> getInactiveDevices(Integer groupNum, Boolean onlyDevicesToBe
          }
          break
       default:
-         log.debug "Ignoring device $device: unsupported detcetion method $detectionMethod"
+         log.debug "Ignoring device $device: unsupported detection method $detectionMethod"
    }
    return inactiveDevices
 }
 
 /**
- *  Returns inactive devies (only) in Map in format like:
+ *  Returns inactive devices (only) in Map in format like:
  *  [DeviceWrapper: ["device status (last activity, battery, etc.)", "optional other device status,..."]]
  *  for all groups; intended to be used when viewing report or sending notification
  *  @param isReportPage: false if is notification (default), true if "View current report" page; affects Last Activity string format
@@ -508,19 +508,21 @@ Integer performRefreshes(Boolean returnCountOnlyAndDoNotRefresh=false) {
       toRefreshDevices.addAll(getInactiveDevices(it, true)) // only includes devices needing refresh
    }
    if (toRefreshDevices) {
-      logDebug "Devices to refresh: $toRefreshDevices"
       if (!returnCountOnlyAndDoNotRefresh) {
+         logDebug "Devices to refresh: $toRefreshDevices"
          toRefreshDevices.each {
             try {
                it.refresh()
+               logDebug "Refreshing $it"
                pauseExecution(200)
             }
             catch (Exception ex) {
                log.warn "Could not refresh $it:\n$ex"
             }
          }
+         logDebug "Sending refresh commands completed"
       }
-      waitTime = (toRefreshDevices.size() * 200 + 5000) / 1000
+      waitTime = (toRefreshDevices.size() * 200 + 14000) / 1000
    }
    return waitTime
 }
@@ -604,9 +606,8 @@ void sendInactiveNotification(Boolean doRefreshIfConfigured=true) {
    logDebug "sendInactiveNotification($doRefreshIfConfigured)", "trace"
    if (doRefreshIfConfigured == true) {
       logDebug "doRefreshIfConfigured == true"
-      Integer waitTime = performRefreshes(true) // only gets time, does not refresh
+      Integer waitTime = performRefreshes()
       runIn(waitTime, "postRefreshNotificationHandler")
-      performRefreshes()
       return
    }
    logDebug "Preparing list of inactive devices..."
@@ -639,7 +640,6 @@ void sendInactiveNotification(Boolean doRefreshIfConfigured=true) {
 }
 
 void postRefreshNotificationHandler() {
-   pauseExecution(100) // probably not necessary, but just in case (give a bit more time)
    sendInactiveNotification(false) // skips refresh
 }
 
