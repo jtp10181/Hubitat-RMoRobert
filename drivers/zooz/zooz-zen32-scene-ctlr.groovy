@@ -36,6 +36,7 @@
  *
  * 
  *  Changelog:
+ *  v2.2.1  (2023-12-04): Fix for parameter 18 swapped values (power restore state)
  *  v2.2.f1 (2023-10-03): @jtp10181 Saving LED human readable details to a state variables, support for doubleTapped event, other misc tweaks
  *  v2.2    (2023-09-23): Enhancements for some commands and preferences with changes thanks to @jtp10181
  *  v2.1    (2023-09-19): Update for firmware 10.40 (700-series) and hardware 2.0. Recommended for use with
@@ -90,7 +91,7 @@ import groovy.transform.Field
    17: [input: [name: "param.17", type: "number", title: "Auto-On Timer for Relay (minutes) [#17]", range: 0..65535],
       size: 4],
    18: [input: [name: "param.18", type: "enum", title: "State After Power Restored [#18]",
-      options: [0:"Previous State (DEFAULT)", 1:"On", 2:"Off"]],
+      options: [0:"Previous State (DEFAULT)", 1:"Off", 2:"On"]],
       size: 1],
    19: [input: [name: "param.19", type: "enum", title: "Physical and Z-Wave (Smart Bulb Mode) [#19]",
       options: [0:"Disable physical control, enable Z-Wave", 1:"Enable physical and Z-Wave control (DEFAULT)", 2:"Disable physical and Z-Wave control"]],
