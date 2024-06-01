@@ -16,10 +16,13 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2023-01-
+ *  Last modified: 2024-02-22
  *
  *  Changelog:
  *
+ * 5.5.4 - Remove extraneous "trace" logging
+ * 5.5.3 - Fix for lights erroneously turning on when were not on before with grace period configured
+ * 5.5.2 - Fix for CT devices
  * 5.5.1 - Always show option for saving exception modes into non-exception cache (regardless of selected actions); fix for killswitches
  * 5.5   - Add ability to specify on or off for both "disable turning on" and "disable dimming/turning off" kill switches
  *       - Legacy setColorTemperature calls removed, legacy prestating "send explicit on()" option removed
@@ -787,7 +790,7 @@ void scheduledOffHandler() {
    if (settings["gracePeriod"]?.isInteger() && settings["gracePeriod"] as Integer != 0) {
       Integer graceSeconds = settings["gracePeriod"] as Integer
       logDebug "  Grace period configured for $graceSeconds seconds"
-      if (devsToTurnOff.size() > 0) {
+      if (wereAnyOn) {
          startGrace()
          logDebug " Entered grace period"
       }
