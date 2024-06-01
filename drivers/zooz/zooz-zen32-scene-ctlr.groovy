@@ -38,6 +38,7 @@
  *  Changelog:
  *  v2.2.2  (2024-05-29): Update fingerprint
  *  v2.2.1  (2023-12-04): Fix for parameter 18 swapped values (power restore state)
+ *  v2.2.f1 (2023-10-03): @jtp10181 Saving LED human readable details to a state variables, support for doubleTapped event, other misc tweaks
  *  v2.2    (2023-09-23): Enhancements for some commands and preferences with changes thanks to @jtp10181
  *  v2.1    (2023-09-19): Update for firmware 10.40 (700-series) and hardware 2.0. Recommended for use with
  *                        hardware v2 (800LR) or original hardware with 10.40+ firmware only.
@@ -86,33 +87,41 @@ import groovy.transform.Field
 @Field static Map<Integer,Short> indicatorLEDNumberMap = [0:0x50, 5:0x43, 1:0x44, 2:0x45, 3:0x46, 4:0x47]
 
 @Field static final Map zwaveParameters = [
-   16: [input: [name: "param.16", type: "number", title: "[16] Automatically turn relay off after ... minutes (0=disable auto-off; default)", range: 0..65535],
+   16: [input: [name: "param.16", type: "number", title: "Auto-Off Timer for Relay (minutes) [#16]", range: 0..65535],
       size: 4],
-   17: [input: [name: "param.17", type: "number", title: "[17] Automatically turn relay on after ... minutes (0=disable auto-on; default)", range: 0..65535],
+   17: [input: [name: "param.17", type: "number", title: "Auto-On Timer for Relay (minutes) [#17]", range: 0..65535],
       size: 4],
-   18: [input: [name: "param.18", type: "enum", title: "[18] State on power restore (relay and buttons)",
-       options: [[1: "Off"], [2: "On"], [0: "Previous state (default)"]]],
+   18: [input: [name: "param.18", type: "enum", title: "State After Power Restored [#18]",
+      options: [0:"Previous State (DEFAULT)", 1:"Off", 2:"On"]],
       size: 1],
-   19: [input: [name: "param.19", type: "enum", title: "[19] Local (physical) and Z-Wave control/smart bulb mode",
-       options: [[0: "Disable local control, enable Z-Wave"], [1: "Enable local and Z-Wave control (default)"], [2: "Disable local and Z-Wave control"]]],
+   19: [input: [name: "param.19", type: "enum", title: "Physical and Z-Wave (Smart Bulb Mode) [#19]",
+      options: [0:"Disable physical control, enable Z-Wave", 1:"Enable physical and Z-Wave control (DEFAULT)", 2:"Disable physical and Z-Wave control"]],
       size: 1],
-   20: [input: [name: "param.20", type: "enum", title: "[20] Behavior of relay reports if local and/or Z-Wave control disabled (scene/button events are always sent)",
-        options: [[0:"Send on/off reports and change LED"],[1:"Do not send on/off reports or change LED (default)"]]],
+   20: [input: [name: "param.20", type: "enum", title: "Behavior if Control is Disabled [#20]", description:" - Button events are always sent",
+      options: [0:"Send on/off reports and change LED",1:"Do not send on/off reports or change LED (DEFAULT)"]],
       size: 1],
-   21: [input: [name: "param.21", type: "enum", title: "[21] 3-way switch type",
-        options: [[0:"Mechanical (connected 3-way turns on/off) (default)"],[1:"Momentary (connected 3-way toggles on/off)"]]],
+   21: [input: [name: "param.21", type: "enum", title: "3-Way Switch Type [#21]",
+      options: [0:"Regular Mechanical 3-way (DEFAULT)",1:"Momentary Switch"]],
       size: 1],
-   22: [input: [name: "param.22", type: "enum", title: "[22] Disable Z-Wave programming (except reset and scenes) on button 5",
-        options: [[0:"Enabled (default)"],[1:"Disabled (allows triple-tap w/o activating exclusion mode)"]]],
+   22: [input: [name: "param.22", type: "enum", title: "Programming from the Relay Button [#22]",
+      options: [0:"Enabled (DEFAULT)", 1:"Disabled"]],
       size: 1],
-   23: [input: [name: "param.23", type: "enum", title: "[23] Flash LED indicators when parameters adjusted (hardware v2 or firmware 10.20+ only)",
-        options: [[0:"Flash (default)"],[1:"Don't Flash (recommended if using setLED() command)"]]],
+   23: [input: [name: "param.23", type: "enum", title: "LED Flash when Settings Changed [#23]",
+      options: [0:"Flash Enabled (DEFAULT)",1:"Flash Disabled"]],
       size: 1],
-   24: [input: [name: "param.24", type: "enum", title: "[24] Enable scene control on button 5 (hardware v2 or firmware 10.30+ only)",
-        options: [[0:"Enabled (default)"],[1:"Disabled (multi-taps no longer possible but reduces delay)"]]],
+   24: [input: [name: "param.24", type: "enum", title: "Scene Control Events on Relay [#24]",
+      options: [0:"Enabled (DEFAULT)", 1:"Disabled"]],
       size: 1],
-   26: [input: [name: "param.26", type: "enum", title: "[26] Enable scene control from momentary in 3-way (hardware v2 or firmware 10.40+ only)",
-        options: [[0:"Disabled (default)"],[1:"Enabled"]]],
+   26: [input: [name: "param.26", type: "enum", title: "Scene Control Events from 3-way [#26]",
+      options: [0:"Disabled (DEFAULT)", 1:"Enabled"]],
+      size: 1],
+   25: [input: [name: "param.25", type: "enum", title: "Send Status Report to Associations [#25]",
+      options: [ 0:"None", 1:"Physical Tap On ZEN Only", 2:"Physical Tap On Connected 3-Way Switch Only", 3:"Physical Tap On ZEN / 3-Way Switch",
+			4:"Z-Wave Command From Hub", 5:"Physical Tap On ZEN / Z-Wave Command", 6:"Physical Tap On 3-Way Switch / Z-Wave Command",
+			7:"Physical Tap On ZEN / 3-Way Switch / Z-Wave Command", 8:"Timer Only", 9:"Physical Tap On ZEN / Timer",
+			10:"Physical Tap On 3-Way Switch / Timer", 11:"Physical Tap On ZEN / 3-Way Switch / Timer", 12:"Z-Wave Command From Hub / Timer",
+			13:"Physical Tap On ZEN / Z-Wave Command / Timer", 14:"Physical Tap On ZEN / 3-Way Switch / Z-Wave Command / Timer",
+			15:"All Of The Above (DEFAULT)" ]],
       size: 1]
 ]
 
@@ -134,14 +143,15 @@ metadata {
       capability "PushableButton"
       capability "HoldableButton"
       capability "ReleasableButton"
+      capability "DoubleTapableButton"
 
       command "refresh"
 
       command "setConfigParameter", [[name:"Parameter Number*", type: "NUMBER"], [name:"Value*", type: "NUMBER"], [name:"Size*", type: "NUMBER"]]
 
-      command "setLED", [[name:"ledNumber*", type: "NUMBER", description: "LED/button number: 1-5 (5=large/relay button)", constraints: 1..5],
-                         [name:"colorName", type: "ENUM", description: "Color name: white, blue, green, red (all versions); also magenta, yellow, cyan (hardare v2 or FW10.40+)", constraints: colorNameMap],
-                         [name:"brightness", type: "NUMBER", description: "Brightness level: 100, 60, or 30 (percent; will round to nearest if not one of these); or 0 for off", constraints: [100,60,30,0]],
+      command "setLED", [[name:"ledNumber*", type: "NUMBER", description: "LED/Button Number (1-5, 5=large button)", constraints: 1..5],
+                         [name:"colorName", type: "ENUM", description: "Select Color Name (blank for no change)", constraints: ['':"no change"]+colorNameMap],
+                         [name:"brightness", type: "NUMBER", description: "Brightness Level (100, 60, 30; 0 for off; blank turns on only)", constraints: [100,60,30,0]],
                         ]
 
       command "setIndicator", [[name:"ledNumber*", type: "NUMBER", description: "LED/Button number (1-5, 5=large button, 0=all)", constraints: 0..5],
@@ -152,15 +162,15 @@ metadata {
                         ]
 
       fingerprint mfr:"027A", prod:"7000", deviceId:"A008", inClusters:"0x5E,0x25,0x70,0x20,0x5B,0x85,0x8E,0x59,0x55,0x86,0x72,0x5A,0x73,0x87,0x9F,0x6C,0x7A", controllerType: "ZWV"
-      fingerprint mfr:"027A", prod:"7000", deviceId:"A008", inClusters:"0x5E,0x9F,0x55,0x6C", controllerType: "ZWV"
+      //fingerprint mfr:"027A", prod:"7000", deviceId:"A008", inClusters:"0x5E,0x9F,0x55,0x6C", controllerType: "ZWV"
    }
 
    preferences {
       zwaveParameters.each {
          input it.value.input
       }
-      input name: "relayLEDBehavior", type: "enum", title: "Relay LED Indicator Mode", options: [[0:"On when relay off (default)"],[1:"On when relay on"],
-         [2:"Always off"],[3:"Always on"],[4:"As modified by LED commands (recommended in some uses cases)"]]
+      input name: "relayLEDBehavior", type: "enum", title: "Relay LED Indicator Mode", options: [[0:"On when relay Off (DEFAULT)"],[1:"On when relay On"],
+         [2:"Always Off"],[3:"Always On"],[4:"Control with \"Set LED\" command"]]
       input name: "enableDebug", type: "bool", title: "Enable debug logging", defaultValue: true
       input name: "enableDesc", type: "bool", title: "Enable descriptionText logging", defaultValue: true
    }
@@ -215,7 +225,50 @@ void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.DeviceSpecificRepo
 
 void zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) {
    if (enableDebug) log.debug "ConfigurationReport: ${cmd}"
-   setStoredConfigParamValue(cmd.parameterNumber, cmd.scaledConfigurationValue)
+
+   //Find LED Number for certian parameters
+   def ledIndic = ledIndicatorParams.find{ cmd.parameterNumber == it.value }
+   def ledColor = ledColorParams.find{ cmd.parameterNumber == it.value }
+   def ledBright = ledBrightnessParams.find{ cmd.parameterNumber == it.value }
+   def val = cmd.scaledConfigurationValue
+   Integer ledNum
+   Integer slot
+
+   if (ledIndic) {
+      slot = 0
+      ledNum = ledIndic.key
+      switch (val) {
+         case 0: val = "on when off"; break
+         case 1: val = "on when on"; break
+         case 2: val = "off"; break
+         case 3: val = "on"; break
+      }
+   }
+   else if (ledColor) {
+      slot = 1
+      ledNum = ledColor.key
+      val = colorNameMap[val as Integer] ?: "unknown"
+   }
+   else if (ledBright) {
+      slot = 2
+      ledNum = ledBright.key
+      switch (val) {
+         case 0: val = "100%"; break
+         case 1: val = "60%"; break
+         case 2: val = "30%"; break
+      }
+   }
+   
+   if (ledNum) {
+      if (enableDesc) log.info "${device.displayName} LED #${ledNum} set to ${val}"
+      if (state.settingsLED != null && state.settingsLED["$ledNum"] != null) {
+         state.settingsLED["$ledNum"][slot] = val
+      }
+   }
+   else {
+      if (enableDesc) log.info "${device.displayName} parameter '${cmd.parameterNumber}', size '${cmd.size}', is set to '${cmd.scaledConfigurationValue}'"
+      setStoredConfigParamValue(cmd.parameterNumber, cmd.scaledConfigurationValue)
+   }
 }
 
 void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
@@ -254,6 +307,14 @@ void zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification c
       String descriptionText = "${device.displayName} button ${btnNum} was ${btnAction}"
       if (enableDesc) log.info "${descriptionText}"
       sendEvent(name: "${btnAction}", value: "${btnNum}", descriptionText: descriptionText, isStateChange: true, type: "physical")
+
+      if (cmd.keyAttributes as Integer == 3) {
+         btnNum = btnBaseNum
+         btnAction = "doubleTapped"
+         descriptionText = "${device.displayName} button ${btnNum} was ${btnAction}"
+         if (enableDesc) log.info "${descriptionText}"
+         sendEvent(name: "${btnAction}", value: "${btnNum}", descriptionText: descriptionText, isStateChange: true, type: "physical")
+      }
    }
 }
 
@@ -292,7 +353,6 @@ List<String> refresh() {
    if (enableDebug) log.debug "refresh"
    return delayBetween([
       zwaveSecureEncap(zwave.basicV1.basicGet()),
-      zwaveSecureEncap(zwave.configurationV1.configurationGet()),
       zwaveSecureEncap(zwave.versionV2.versionGet())
    ], 100)
 }
@@ -319,6 +379,10 @@ void release(btnNum) {
    sendEvent(name: "released", value: btnNum, isStateChange: true, type: "digital")
 }
 
+void doubleTap(btnNum) {
+   sendEvent(name: "doubleTapped", value: btnNum, isStateChange: true, type: "digital")
+}
+
 void installed(){
    log.warn "Installed..."
    sendEvent(name: "level", value: 1)
@@ -330,26 +394,12 @@ List<String> configure() {
    
    sendEvent(name: "numberOfButtons", value: 25)
 
-   zwaveParameters.each { param, data ->
-      if (settings[data.input.name] != null) {
-         if (enableDebug) log.debug "Preference parameter: setting parameter $param (size:  ${data.size}) to ${settings[data.input.name]}"
-         cmds << zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: settings[data.input.name] as BigInteger, parameterNumber: param, size: data.size))
-      }
-   }
-
    defaultZwaveParameters.each { param, data ->
       if (enableDebug) log.debug "Default parameter: setting parameter $param (size:  ${data.size}) to ${data.value}"
-      cmds <<zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: data.value as BigInteger, parameterNumber: param, size: data.size))
+      cmds << zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: data.value as BigInteger, parameterNumber: param, size: data.size))
    }
 
-   if (relayLEDBehavior != null) {
-      BigInteger relayLEDParamVal = relayLEDBehavior as BigInteger
-      if (relayLEDParamVal < 4) {
-         cmds << zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: relayLEDParamVal, parameterNumber: 1, size: 1))
-         cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet(parameterNumber: 1))
-      }
-   }
-   
+   //Request Paramater Values
    ledIndicatorParams.each { led, pNum ->
       cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet(parameterNumber: pNum as Integer))
    }
@@ -361,10 +411,12 @@ List<String> configure() {
    }
 
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
-   cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
-   cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet())
    cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1))
-   return delayBetween(cmds, 150)
+
+   cmds = delayBetween(cmds, 150)
+   cmds += updated()
+
+   return cmds
 }
 
 // Apply preferences changes, including updating parameters
@@ -393,18 +445,20 @@ List<String> updated() {
          cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet(parameterNumber: 1))
       }
    }
+   if (state.settingsLED == null) state.settingsLED = [1:[],2:[],3:[],4:[],5:[]]
 
-   // Had this before but really probably don't need to do it every save, only Configure?
-   // cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
-   // cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1))
    return delayBetween(cmds, 200)
 }
 
-List<String> setLED(ledNumber, String colorName, brightness=null) {
-   if (enableDebug) log.debug "setLED(Object $ledNumber, String $colorName, Object $brightness)"
+//Handle when missing parameters
+List<String> setLED(ledNumber) { setLED(ledNumber, null, null) }
+List<String> setLED(ledNumber, String colorName) { setLED(ledNumber, colorName, null) }
+List<String> setLED(ledNumber, Integer brightness) { setLED(ledNumber, null, brightness) }
+//Main SetLED Function requires all paramaters
+List<String> setLED(ledNumber, String colorName, brightness) {
+   if (enableDebug) log.debug "setLED(Number $ledNumber, Color $colorName, Brightness $brightness)"
    Integer intLedNum = ledNumber as Integer
-   Integer intColor = colorNameMap.find{ colorName?.equalsIgnoreCase(it.value) }.key != null ?
-                         colorNameMap.find{ colorName.equalsIgnoreCase(it.value) }.key : null
+   Integer intColor = colorName ? (colorNameMap.find{ colorName.equalsIgnoreCase(it.value) }?.key) : null
    Integer intLevel = null
    switch (brightness as Integer) {
       case 1..44:
@@ -419,9 +473,8 @@ List<String> setLED(ledNumber, String colorName, brightness=null) {
       case 0:
          intLevel = -1  // using to mean "off"
          break
-      default:
-         intLevel = null  // using to mean "don't set"
    }
+   if (enableDebug) log.debug "setLED(Number $intLedNum, Color $intColor, Brightness $intLevel) ADJUSTED"
    List<String> cmds = []
    if (intLevel == -1) {
       // Set LED to "always off" (may want to change in future if add association), unless #5/relay and configured not to:
@@ -430,40 +483,25 @@ List<String> setLED(ledNumber, String colorName, brightness=null) {
          cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet(parameterNumber: ledIndicatorParams[intLedNum]))
       }
       else {
-         if (enableDebug) log.debug "Relay LED (#5) not configured to allow turning off from setLED (no changes made)"
+         log.warn "Relay LED (#5) not configured to allow turning off from setLED (no changes made)"
       }
    }
    else {
-      if (intColor != null) {
+      if (intColor >= 0) {
          cmds << zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: ledColorParams[intLedNum], size: 1))
-      }
-      else {
-         if (enableDebug) log.debug "Not changing color because no color found for color: $colorName"
-      }
-      if (intLevel != null) {
-
-      }
-      else {
-         
+         cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet(parameterNumber: ledColorParams[intLedNum]))
       }
       if (intLevel >= 0) {
          cmds << zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: ledBrightnessParams[intLedNum], size: 1))
-      }
-      else {
-         if (enableDebug) log.debug "Not changing level because convertd value not >= 0"
+         cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet(parameterNumber: ledBrightnessParams[intLedNum]))
       }
       // Set LED to "always on" (may want to change in future if add association):
       if (intLedNum != 5 || (relayLEDBehavior as Integer) == 4) {
          cmds << zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: 3, parameterNumber: ledIndicatorParams[intLedNum], size: 1))
+         cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet(parameterNumber: ledIndicatorParams[intLedNum]))
       }
-      else if (brightness && (relayLEDBehavior as Integer) < 3) { 
-         if (enableDebug) log.debug "Relay LED (#5) not configured to allow turning on from setLED (skipping setting to always on)"
-      }
-      cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet(parameterNumber: ledColorParams[intLedNum]))
-      cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet(parameterNumber: ledBrightnessParams[intLedNum]))
-      cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet(parameterNumber: ledIndicatorParams[intLedNum]))
    }
-   return cmds ? delayBetween(cmds, 500) : []
+   return cmds ? delayBetween(cmds, 300) : []
 }
 
 List<String> setIndicator(Number ledNumber=0, String mode="on", Number lengthOfOnOffPeriods=null, Number numberOfOnOffPeriods=null, Number lengthOfOnPeriod=null) {
